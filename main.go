@@ -17,7 +17,8 @@ type LoadBalancer struct {
 }
 
 type Server struct {
-	address string
+	address  string
+	reqCount int
 }
 
 func NewLoadBalancer() *LoadBalancer {
@@ -38,6 +39,7 @@ func (lb *LoadBalancer) ChooseServer() *Server {
 	if len(lb.servers) != 1 {
 		lb.servers = append(lb.servers[1:], lb.servers[0])
 	}
+	nextServer.reqCount++
 	return nextServer
 }
 
@@ -69,6 +71,14 @@ func (lb *LoadBalancer) HandleRequest(c *gin.Context) {
 	p.ServeHTTP(c.Writer, c.Request)
 }
 
+func (lb *LoadBalancer) MetricsHandler(c *gin.Context) {
+	metrics := make(map[string]int)
+	for _, server := range lb.servers {
+		metrics[server.address] = server.reqCount
+	}
+	c.IndentedJSON(http.StatusOK, metrics)
+}
+
 func main() {
 	fmt.Println("Running server!")
 	lb := NewLoadBalancer()
@@ -78,6 +88,9 @@ func main() {
 	r := gin.Default()
 	r.GET("/", func(ctx *gin.Context) {
 		lb.HandleRequest(ctx)
+	})
+	r.GET("/metrics", func(ctx *gin.Context) {
+		lb.MetricsHandler(ctx)
 	})
 	r.Run()
 }
