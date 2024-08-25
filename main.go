@@ -1,13 +1,12 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
-
-	"github.com/gin-gonic/gin"
 )
 
 //Let's make a load balancer
@@ -61,22 +60,23 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	reverseProxy.ServeHTTP(w, r)
 }
 
-func (lb *LoadBalancer) HandleRequest(c *gin.Context) {
+func (lb *LoadBalancer) HandleRequest(w http.ResponseWriter, r *http.Request) {
 	server := lb.ChooseServer()
 	if server == nil {
 		log.Fatal("No server available!")
 		return
 	}
 	p := NewProxy(server.address)
-	p.ServeHTTP(c.Writer, c.Request)
+	p.ServeHTTP(w, r)
 }
 
-func (lb *LoadBalancer) MetricsHandler(c *gin.Context) {
+func (lb *LoadBalancer) MetricsHandler(w http.ResponseWriter, r *http.Request) {
 	metrics := make(map[string]int)
 	for _, server := range lb.servers {
 		metrics[server.address] = server.reqCount
 	}
-	c.IndentedJSON(http.StatusOK, metrics)
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(metrics)
 }
 
 func main() {
@@ -85,12 +85,9 @@ func main() {
 	lb.AddServer("http://127.0.0.1:8000")
 	lb.AddServer("http://127.0.0.1:8001")
 	lb.AddServer("http://127.0.0.1:8002")
-	r := gin.Default()
-	r.GET("/", func(ctx *gin.Context) {
-		lb.HandleRequest(ctx)
-	})
-	r.GET("/metrics", func(ctx *gin.Context) {
-		lb.MetricsHandler(ctx)
-	})
-	r.Run()
+
+	http.HandleFunc("/", lb.HandleRequest)
+	http.HandleFunc("/metrics", lb.MetricsHandler)
+
+	http.ListenAndServe(":8080", nil)
 }
