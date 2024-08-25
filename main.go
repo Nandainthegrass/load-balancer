@@ -56,7 +56,7 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	targetURL, _ := url.Parse(p.targetUrl)
 	r.Header.Set("Connection", "close")
 	reverseProxy := httputil.NewSingleHostReverseProxy(targetURL)
-	fmt.Printf("request sent to %v", p.targetUrl)
+	fmt.Printf("request sent to %v\n", p.targetUrl)
 	reverseProxy.ServeHTTP(w, r)
 }
 
